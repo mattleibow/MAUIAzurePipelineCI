@@ -1,0 +1,190 @@
+# Xamarin.Android
+# Build a Xamarin.Android project.
+# Add steps that test, sign, and distribute an app, save build artifacts, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/xamarin
+
+# trigger:
+#   branches:
+#     include:
+#       - master
+#       - 'HPS*'
+#     exclude:
+#       - release*
+
+variables:
+  - group: 'Mobility'
+  # - name: MacOSImage
+  #   value: 'macOS-latest'
+
+stages:
+  - stage: Build
+    displayName: 'Building Apps'
+    pool: 
+        vmImage: 'windows-latest'
+        demands:
+        - MSBuild
+
+    jobs:    
+    # Job to install MAUI Workload
+    - job: InstallMAUIWorkload
+      displayName: Installing MAUI Workloads
+
+      steps:
+        # Step 1 : Install .NET MAUI
+        #- task: Bash@3
+        #  displayName: Install .NET MAUI
+        #  inputs:
+        #    targetType: inline
+        #    script: |
+        #        dotnet nuget locals all --clear 
+        #        dotnet workload install maui #--source https://aka.ms/dotnet6/nuget/index.json --source https://api.nuget.org/v3/index.json
+        #        dotnet workload install maui-android maui-ios maui-tizen #android ios maccatalyst macos maui --source https://aka.ms/dotnet6/nuget/index.json --source https://api.nuget.org/v3/index.json
+
+        # Step 1: Install .NET MAUI & Necessary Workloads
+        - task: CmdLine@2
+          displayName: Install .NET MAUI and necessary workload
+          inputs:            
+            script: |
+              dotnet workload restore $(PROJECT_PATH)              
+
+        # Step 2: Install .NET SDK
+        - task: UseDotNet@2
+          displayName: Install .NET SDK
+          inputs:
+            packageType: sdk
+            version: '$(DOT_NET_VERSION)'
+            includePreviewVersions: false
+
+        # Step 3: Restore Nuget
+        - task: CmdLine@2
+          displayName: Restore nuget
+          inputs:            
+            script: |
+              dotnet workload restore $(SOLUTION_PATH)
+              dotnet restore $(SOLUTION_PATH)
+
+    # Job to Build Windows App
+    - job: BuildWindowsApp
+      dependsOn: InstallMAUIWorkload
+      displayName: Building Windows App      
+
+      steps:            
+        # Step 1 : Building Windows App
+        - task: CmdLine@2
+          displayName: Windows App Build
+          inputs:            
+            script: |
+              dotnet build $(PROJECT_PATH) -f $(TARGETFRAMEWORK_WINDOWS) -c $(BUILD_CONFIGURATION)
+
+        # Step 2: Downloading .PFX File
+
+        # Step 3: Signing the msix file with the .PFX File
+
+        # Step 4: Publish Package/Artificat
+
+
+    # Job to Build Andorid App
+    - job: BuildAndroidApp
+      dependsOn: InstallMAUIWorkload
+      displayName: Building Android App      
+        
+      steps:               
+        # Step 2: Building Android Project
+        - task: CmdLine@2
+          displayName: Android App Build
+          inputs:
+            script: |
+              dotnet build $(PROJECT_PATH) -f $(TARGETFRAMEWORK_ANDROID) -c $(BUILD_CONFIGURATION)
+
+
+    # Job to Build iOS App     
+    #- job: BuildiOSApp
+    #  displayName: Building iOS App
+    #  pool:
+    #    vmImage: macos-latest
+    #    demands:
+    #    - MSBuild
+
+    #  steps:
+    #    # Step 1 : Install .NET MAUI            
+    #    - task: Bash@3
+    #      displayName: Install .NET MAUI
+    #      inputs:
+    #        targetType: inline
+    #        script: |
+    #            dotnet nuget locals all --clear 
+    #            dotnet workload install maui #--source https://aka.ms/dotnet6/nuget/index.json --source https://api.nuget.org/v3/index.json
+    #            dotnet workload install maui-android maui-ios maui-tizen #android ios maccatalyst macos maui --source https://aka.ms/dotnet6/nuget/index.json --source https://api.nuget.org/v3/index.json                
+
+    #    # Step 2 : Installing .NET SDK
+    #    - task: UseDotNet@2
+    #      displayName: Install .NET SDK
+    #      inputs:
+    #        packageType: sdk
+    #        version: '$(DOT_NET_VERSION)'
+    #        includePreviewVersions: false
+        
+    #    # Step 3: Restore Nuget
+    #    - task: CmdLine@2
+    #      displayName: Restore nuget
+    #      inputs:            
+    #        script: |
+    #          dotnet workload restore '$(SOLUTION_PATH)'
+    #          dotnet restore '$(SOLUTION_PATH)'
+        
+    #    # Step 4: Building Project
+    #    - task: CmdLine@2
+    #      displayName: iOS App Build
+    #      inputs:
+    #        script: |
+    #          dotnet build $(PROJECT_PATH) -f $(TARGETFRAMEWORK_IOS) -c $(BUILD_CONFIGURATION)
+
+        
+
+  # Stage 2 - Build and Fire Unit Tests
+  - stage: Test
+    displayName: 'Unit Tests'
+    pool: 
+        vmImage: 'windows-latest'
+        demands:
+        - MSBuild    
+    
+    jobs:      
+      - job: BuildUnitTestProject
+        displayName: 'Building Unit Test Project'        
+        
+        steps:
+    
+        # Step 1 : Install .NET MAUI            
+        - task: Bash@3
+          displayName: Install .NET MAUI
+          inputs:
+            targetType: inline
+            script: |
+                dotnet nuget locals all --clear 
+                dotnet workload install maui --source https://aka.ms/dotnet6/nuget/index.json --source https://api.nuget.org/v3/index.json
+                dotnet workload install android ios maccatalyst macos maui --source https://aka.ms/dotnet6/nuget/index.json --source https://api.nuget.org/v3/index.json
+
+        # Step 2 : Installing .NET SDK
+        - task: UseDotNet@2
+          displayName: Install .NET SDK
+          inputs:
+            packageType: sdk
+            version: '$(DOT_NET_VERSION)'
+            includePreviewVersions: false
+        
+        # Step 3: Restore Nuget
+        - task: CmdLine@2
+          displayName: Restore nuget
+          inputs:            
+            script: |
+              dotnet workload restore '$(SOLUTION_PATH)'
+              dotnet restore $(SOLUTION_PATH)
+
+        # Step 4: Building Test Project
+        - task: CmdLine@2
+          displayName: Building UnitTests Project
+          inputs:
+            script: |
+              dotnet build $(UNITTESTS_PROJECT_PATH) -f $(UNITTESTS_TARGETFRAMEWORK)
+      
